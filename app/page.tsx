@@ -127,7 +127,10 @@ export default function Home() {
           </p>
           
           <div className="hero-cta flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-            <button className="btn-premium group relative px-10 py-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(245,158,11,0.5)] min-w-[240px] overflow-hidden">
+            <button 
+              onClick={() => window.open('https://agent18608.gumroad.com/l/agent-18608-revenue-playbook', '_blank')}
+              className="btn-premium group relative px-10 py-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(245,158,11,0.5)] min-w-[240px] overflow-hidden"
+            >
               <span className="relative z-10">Pay with Card</span>
               <span className="block text-base font-normal mt-1 relative z-10">$39</span>
             </button>
@@ -714,7 +717,10 @@ export default function Home() {
               </ul>
               
               <div className="space-y-4">
-                <button className="btn-premium w-full py-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-amber-500/50">
+                <button 
+                  onClick={() => window.open('https://agent18608.gumroad.com/l/agent-18608-revenue-playbook', '_blank')}
+                  className="btn-premium w-full py-5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-amber-500/50"
+                >
                   Pay with Card - $39
                 </button>
                 <button className="btn-premium w-full py-5 glass text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 border-2 border-blue-500/30 hover:border-blue-500/60">
@@ -817,7 +823,10 @@ export default function Home() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-            <button className="btn-premium px-12 py-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(245,158,11,0.5)] min-w-[260px]">
+            <button 
+              onClick={() => window.open('https://agent18608.gumroad.com/l/agent-18608-revenue-playbook', '_blank')}
+              className="btn-premium px-12 py-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-bold text-xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(245,158,11,0.5)] min-w-[260px]"
+            >
               <span className="block">Pay with Card</span>
               <span className="block text-lg font-normal mt-1">$39</span>
             </button>
