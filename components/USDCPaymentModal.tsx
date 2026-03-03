@@ -1,53 +1,88 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useChainId, useSwitchChain, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { base } from 'wagmi/chains';
 
-interface PaymentData {
-  sessionId: string;
-  amount?: string;
-  recipient?: string;
-  network?: string;
-  expiresAt?: number;
-}
+const ERC20_TRANSFER_ABI = [{
+  name: 'transfer',
+  type: 'function',
+  stateMutability: 'nonpayable',
+  inputs: [
+    { name: 'to', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+  ],
+  outputs: [{ name: '', type: 'bool' }],
+}] as const;
+
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+const RECIPIENT = (process.env.NEXT_PUBLIC_X402_WALLET || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78') as `0x${string}`;
+const USDC_AMOUNT = BigInt(39_000_000); // 39 USDC, 6 decimals
+
+type PaymentStatus = 'initiating' | 'ready' | 'signing' | 'pending' | 'verifying' | 'confirmed' | 'error';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  walletAddress: `0x${string}` | undefined;
 }
 
-export default function USDCPaymentModal({ isOpen, onClose }: Props) {
-  const [walletAddress, setWalletAddress] = useState('');
-  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
-  const [txHash, setTxHash] = useState('');
-  const [status, setStatus] = useState<'input' | 'ready' | 'verifying' | 'confirmed' | 'error'>('input');
+export default function USDCPaymentModal({ isOpen, onClose, walletAddress }: Props) {
+  const [status, setStatus] = useState<PaymentStatus>('initiating');
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorType, setErrorType] = useState<'wrong-chain' | 'rejected' | 'insufficient' | 'reverted' | 'verify-failed' | 'generic'>('generic');
   const [downloadUrl, setDownloadUrl] = useState('');
   const [facilitator, setFacilitator] = useState('');
-  const [copied, setCopied] = useState(false);
+
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const isWrongChain = chainId !== base.id;
+
+  const {
+    writeContractAsync,
+    data: txHash,
+    reset: resetWrite,
+  } = useWriteContract();
+
+  const { isSuccess: isTxConfirmed, isError: isTxFailed } = useWaitForTransactionReceipt({
+    hash: txHash,
+    chainId: base.id,
+  });
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setWalletAddress('');
-      setPaymentData(null);
-      setTxHash('');
-      setStatus('input');
+      setStatus('initiating');
+      setSessionId(null);
       setErrorMessage('');
+      setErrorType('generic');
       setDownloadUrl('');
       setFacilitator('');
-      setCopied(false);
+      resetWrite();
+      initiatePayment();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Auto-verify when tx confirms on-chain
+  useEffect(() => {
+    if (isTxConfirmed && txHash && sessionId && status === 'pending') {
+      verifyPayment(txHash);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTxConfirmed, txHash, sessionId, status]);
 
-  const recipient = process.env.NEXT_PUBLIC_X402_WALLET || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78';
-  const usdcAmount = '39.00';
+  // Handle tx revert
+  useEffect(() => {
+    if (isTxFailed && status === 'pending') {
+      setStatus('error');
+      setErrorMessage('Transaction reverted on-chain. The transfer may have failed due to insufficient USDC balance or allowance.');
+      setErrorType('reverted');
+    }
+  }, [isTxFailed, status]);
 
-  const handleInitiatePayment = async () => {
-    setStatus('ready');
-    setErrorMessage('');
-
+  const initiatePayment = async () => {
     try {
       const response = await fetch('/api/payments/x402/initiate', {
         method: 'POST',
@@ -58,46 +93,75 @@ export default function USDCPaymentModal({ isOpen, onClose }: Props) {
       const data = await response.json();
 
       if (data.sessionId) {
-        setPaymentData(data);
+        setSessionId(data.sessionId);
         setStatus('ready');
       } else {
         setStatus('error');
-        setErrorMessage(data.error || 'Failed to initiate payment');
+        setErrorMessage(data.error || 'Failed to initiate payment session.');
+        setErrorType('generic');
       }
-    } catch (error) {
+    } catch {
       setStatus('error');
       setErrorMessage('Payment initiation failed. Please try again.');
-      console.error('Initiation error:', error);
+      setErrorType('generic');
     }
   };
 
-  const handleCopyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(recipient);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
+  const handlePay = useCallback(async () => {
+    if (!sessionId) return;
 
-  const handleVerifyPayment = async () => {
-    if (!txHash || !paymentData) {
-      setErrorMessage('Please enter a transaction hash');
+    if (isWrongChain) {
+      try {
+        switchChain({ chainId: base.id });
+      } catch {
+        setStatus('error');
+        setErrorMessage('Failed to switch to Base network. Please switch manually in your wallet.');
+        setErrorType('wrong-chain');
+      }
       return;
     }
 
-    setStatus('verifying');
+    setStatus('signing');
     setErrorMessage('');
+
+    try {
+      await writeContractAsync({
+        address: USDC_ADDRESS,
+        abi: ERC20_TRANSFER_ABI,
+        functionName: 'transfer',
+        args: [RECIPIENT, USDC_AMOUNT],
+        chainId: base.id,
+      });
+      // txHash is set by the hook; move to pending
+      setStatus('pending');
+    } catch (err: unknown) {
+      const error = err as { shortMessage?: string; name?: string };
+      const message = error?.shortMessage || '';
+
+      if (message.includes('User rejected') || error?.name === 'UserRejectedRequestError') {
+        setStatus('error');
+        setErrorMessage('Transaction cancelled. You can try again when ready.');
+        setErrorType('rejected');
+      } else if (message.includes('insufficient') || message.includes('exceeds balance')) {
+        setStatus('error');
+        setErrorMessage('Insufficient USDC balance. You need at least 39 USDC on Base.');
+        setErrorType('insufficient');
+      } else {
+        setStatus('error');
+        setErrorMessage(message || 'Transaction failed. Please try again.');
+        setErrorType('generic');
+      }
+    }
+  }, [sessionId, isWrongChain, switchChain, writeContractAsync]);
+
+  const verifyPayment = async (hash: `0x${string}`) => {
+    setStatus('verifying');
 
     try {
       const response = await fetch('/api/payments/x402/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sessionId: paymentData.sessionId,
-          txHash: txHash.trim()
-        }),
+        body: JSON.stringify({ sessionId, txHash: hash }),
       });
 
       const data = await response.json();
@@ -108,13 +172,28 @@ export default function USDCPaymentModal({ isOpen, onClose }: Props) {
         setFacilitator(data.facilitator || '');
       } else {
         setStatus('error');
-        setErrorMessage(data.error || 'Payment verification failed. Please check your transaction hash.');
+        setErrorMessage(data.error || 'Payment verification failed. Please contact support.');
+        setErrorType('verify-failed');
       }
-
-    } catch (error) {
+    } catch {
       setStatus('error');
-      setErrorMessage('Verification failed. Please try again.');
-      console.error('Verification error:', error);
+      setErrorMessage('Verification request failed. Please try again.');
+      setErrorType('verify-failed');
+    }
+  };
+
+  const handleRetry = () => {
+    if (errorType === 'verify-failed' && txHash && sessionId) {
+      verifyPayment(txHash);
+    } else if (errorType === 'reverted') {
+      // Full restart
+      resetWrite();
+      setStatus('initiating');
+      initiatePayment();
+    } else {
+      // rejected, insufficient, generic — just go back to ready
+      setStatus('ready');
+      setErrorMessage('');
     }
   };
 
@@ -125,161 +204,171 @@ export default function USDCPaymentModal({ isOpen, onClose }: Props) {
     }
   };
 
+  if (!isOpen) return null;
+
+  const truncatedHash = txHash
+    ? `${txHash.slice(0, 10)}...${txHash.slice(-8)}`
+    : '';
+
+  const retryLabel = errorType === 'verify-failed'
+    ? 'Retry Verification'
+    : errorType === 'reverted'
+      ? 'Start Over'
+      : errorType === 'wrong-chain'
+        ? 'Switch to Base'
+        : 'Try Again';
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-md w-full p-6 relative">
-        {/* Close button */}
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-gray-200 rounded-xl max-w-md w-full p-8 relative shadow-lg">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="absolute top-6 right-6 text-gray-300 hover:text-gray-500 transition-colors"
+          aria-label="Close"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        <h2 className="text-2xl font-bold mb-6 text-white">Pay with USDC</h2>
+        <h2 className="font-display text-2xl mb-8 text-gray-900">Pay with USDC</h2>
 
-        {status === 'confirmed' ? (
-          // Success state
-          <div className="space-y-4">
-            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
-              <div className="text-green-500 text-4xl mb-2">✓</div>
-              <p className="text-green-400 font-medium mb-2">Payment Confirmed!</p>
-              {facilitator && (
-                <p className="text-sm text-slate-400">
-                  Verified by: {facilitator}
+        {/* Initiating */}
+        {status === 'initiating' && (
+          <div className="flex flex-col items-center py-8 gap-4">
+            <Spinner />
+            <p className="text-sm text-gray-400">Preparing payment...</p>
+          </div>
+        )}
+
+        {/* Ready */}
+        {status === 'ready' && (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-xs text-gray-400 mb-2">Amount</label>
+              <p className="text-2xl font-display text-gray-900">39.00 USDC</p>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-2">Network</label>
+              <span className="inline-block bg-blue-50 text-blue-600 text-xs font-medium px-3 py-1.5 rounded">Base</span>
+            </div>
+
+            {isWrongChain && (
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
+                <p className="text-xs text-amber-700">
+                  You&apos;re connected to the wrong network. Please switch to Base to continue.
                 </p>
+              </div>
+            )}
+
+            <button
+              onClick={handlePay}
+              className="w-full bg-[#d4a853] hover:bg-[#c49a42] text-white font-medium py-3 px-6 rounded-lg transition-colors text-sm"
+            >
+              {isWrongChain ? 'Switch to Base' : 'Pay $39 USDC'}
+            </button>
+          </div>
+        )}
+
+        {/* Signing */}
+        {status === 'signing' && (
+          <div className="flex flex-col items-center py-8 gap-4">
+            <Spinner />
+            <p className="text-sm text-gray-400">Waiting for wallet approval...</p>
+            <p className="text-xs text-gray-300">Confirm the transaction in your wallet</p>
+          </div>
+        )}
+
+        {/* Pending */}
+        {status === 'pending' && (
+          <div className="flex flex-col items-center py-8 gap-4">
+            <Spinner />
+            <p className="text-sm text-gray-400">Transaction submitted</p>
+            {txHash && (
+              <a
+                href={`https://basescan.org/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[#d4a853] hover:text-[#c49a42] transition-colors"
+              >
+                {truncatedHash} ↗
+              </a>
+            )}
+            <p className="text-xs text-gray-300">Waiting for on-chain confirmation...</p>
+          </div>
+        )}
+
+        {/* Verifying */}
+        {status === 'verifying' && (
+          <div className="flex flex-col items-center py-8 gap-4">
+            <Spinner />
+            <p className="text-sm text-gray-400">Verifying with validators...</p>
+            {txHash && (
+              <a
+                href={`https://basescan.org/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[#d4a853] hover:text-[#c49a42] transition-colors"
+              >
+                {truncatedHash} ↗
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Confirmed */}
+        {status === 'confirmed' && (
+          <div className="space-y-6">
+            <div className="bg-green-50 border border-green-100 rounded-lg p-5 text-center">
+              <p className="text-green-600 font-medium mb-1">Payment Confirmed</p>
+              {facilitator && (
+                <p className="text-xs text-gray-400">Verified by: {facilitator}</p>
+              )}
+              {txHash && (
+                <a
+                  href={`https://basescan.org/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#d4a853] hover:text-[#c49a42] mt-2 inline-block"
+                >
+                  View transaction ↗
+                </a>
               )}
             </div>
             <button
               onClick={handleDownload}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              className="w-full bg-[#d4a853] hover:bg-[#c49a42] text-white font-medium py-3 px-6 rounded-lg transition-colors text-sm"
             >
-              Download Your Playbook
+              Download Your Manual
             </button>
           </div>
-        ) : status === 'input' ? (
-          // Wallet address input
+        )}
+
+        {/* Error */}
+        {status === 'error' && (
           <div className="space-y-6">
-            <p className="text-slate-300">
-              Enter your wallet address to receive payment confirmation (optional):
-            </p>
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Your Wallet Address</label>
-              <input
-                type="text"
-                value={walletAddress}
-                onChange={(e) => setWalletAddress(e.target.value)}
-                placeholder="0x... (optional)"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
-              />
+            <div className="bg-red-50 border border-red-100 rounded-lg p-4">
+              <p className="text-red-500 text-sm">{errorMessage}</p>
             </div>
-            {errorMessage && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
-                {errorMessage}
-              </div>
-            )}
             <button
-              onClick={handleInitiatePayment}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              onClick={handleRetry}
+              className="w-full bg-[#d4a853] hover:bg-[#c49a42] text-white font-medium py-3 px-6 rounded-lg transition-colors text-sm"
             >
-              Continue to Payment
-            </button>
-          </div>
-        ) : (
-          // Payment instructions
-          <div className="space-y-6">
-            {/* Amount */}
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Amount</label>
-              <div className="text-3xl font-bold text-white">{usdcAmount} USDC</div>
-            </div>
-
-            {/* Network */}
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Network</label>
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-2 inline-block">
-                <span className="text-blue-400 font-medium">Base</span>
-              </div>
-            </div>
-
-            {/* Recipient Address */}
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Send to</label>
-              <div className="bg-zinc-800 rounded-lg p-3 flex items-center justify-between gap-2">
-                <code className="text-xs text-zinc-300 break-all flex-1">{recipient}</code>
-                <button
-                  onClick={handleCopyAddress}
-                  className="text-zinc-400 hover:text-white transition-colors shrink-0"
-                  title="Copy address"
-                >
-                  {copied ? (
-                    <span className="text-green-400 text-xs">✓</span>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Instructions */}
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-              <p className="text-yellow-400 text-sm">
-                <strong>Important:</strong> Send exactly {usdcAmount} USDC on Base network. After sending, paste your transaction hash below.
-              </p>
-            </div>
-
-            {/* Transaction Hash Input */}
-            <div>
-              <label className="block text-sm text-zinc-400 mb-2">Transaction Hash</label>
-              <input
-                type="text"
-                value={txHash}
-                onChange={(e) => setTxHash(e.target.value)}
-                placeholder="0x..."
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
-                disabled={status === 'verifying'}
-              />
-            </div>
-
-            {/* Error Message */}
-            {status === 'error' && errorMessage && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
-                {errorMessage}
-              </div>
-            )}
-
-            {/* Loading State */}
-            {status === 'verifying' && (
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-blue-400 text-sm">
-                Checking with payment validators...
-              </div>
-            )}
-
-            {/* Verify Button */}
-            <button
-              onClick={handleVerifyPayment}
-              disabled={status === 'verifying' || !txHash}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-            >
-              {status === 'verifying' ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Verifying...
-                </span>
-              ) : (
-                'Verify Payment'
-              )}
+              {retryLabel}
             </button>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg className="animate-spin h-6 w-6 text-[#d4a853]" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
   );
 }

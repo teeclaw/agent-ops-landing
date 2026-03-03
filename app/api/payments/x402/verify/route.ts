@@ -2,22 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPaymentWithOnchain } from '@/lib/x402-verify';
 import crypto from 'crypto';
 
+const TX_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
 export async function POST(req: NextRequest) {
   try {
     const { sessionId, paymentProof, txHash } = await req.json();
-    
+
     if (!sessionId) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Session ID required',
       }, { status: 400 });
     }
-    
+
     // Support both x402 proof and simple tx hash
     const proof = paymentProof || { txHash };
-    
+
     if (!proof || (!paymentProof && !txHash)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Payment proof or transaction hash required',
+      }, { status: 400 });
+    }
+
+    // Validate tx hash format
+    if (txHash && !TX_HASH_REGEX.test(txHash.trim())) {
+      return NextResponse.json({
+        error: 'Invalid transaction hash format. Must start with 0x followed by 64 hex characters.',
       }, { status: 400 });
     }
     
@@ -73,16 +82,20 @@ export async function POST(req: NextRequest) {
 
 // Helper: Generate signed download URL
 function generateDownloadUrl(sessionId: string): string {
-  const secret = process.env.DOWNLOAD_SECRET || 'fallback-secret';
+  const secret = process.env.DOWNLOAD_SECRET;
+  if (!secret) {
+    throw new Error('DOWNLOAD_SECRET is not configured');
+  }
+
   const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24h
-  
+
   const data = `${sessionId}:${expiresAt}`;
   const signature = crypto
     .createHmac('sha256', secret)
     .update(data)
     .digest('hex');
-  
+
   const token = Buffer.from(`${data}:${signature}`).toString('base64url');
-  
+
   return `/api/download/file?token=${token}`;
 }
