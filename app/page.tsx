@@ -6,6 +6,8 @@ import USDCPaymentModal from '@/components/USDCPaymentModal';
 export default function Home() {
   // USDC payment modal state
   const [showUSDCModal, setShowUSDCModal] = useState(false);
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Handle USDC payment button click
   const handleUSDCPayment = () => {
@@ -101,6 +103,113 @@ export default function Home() {
 
   return (
     <div className="min-h-screen overflow-hidden">
+      {/* Navbar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-slate-900/80 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          {/* Brand */}
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">📺</span>
+            <span className="font-display font-bold text-xl text-white">
+              Agent 18608
+            </span>
+          </div>
+          
+          {/* Desktop Nav Links */}
+          <div className="hidden md:flex items-center gap-8 text-slate-300">
+            <a 
+              href="#features" 
+              className="hover:text-white transition-colors"
+            >
+              Features
+            </a>
+            <a 
+              href="#whats-inside" 
+              className="hover:text-white transition-colors"
+            >
+              What&apos;s Inside
+            </a>
+            <a 
+              href="#pricing" 
+              className="hover:text-white transition-colors"
+            >
+              Pricing
+            </a>
+          </div>
+          
+          {/* CTA Button */}
+          <button
+            onClick={() => {
+              document.getElementById('pricing')?.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+              });
+            }}
+            className="hidden md:block px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:scale-105 transition-all"
+          >
+            Buy Now - $39
+          </button>
+          
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden text-white p-2"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+        
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-slate-900 border-t border-white/10">
+            <div className="px-6 py-4 space-y-4">
+              <a 
+                href="#features" 
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-slate-300 hover:text-white"
+              >
+                Features
+              </a>
+              <a 
+                href="#whats-inside"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-slate-300 hover:text-white"
+              >
+                What&apos;s Inside
+              </a>
+              <a 
+                href="#pricing"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-slate-300 hover:text-white"
+              >
+                Pricing
+              </a>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  document.getElementById('pricing')?.scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                  });
+                }}
+                className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm"
+              >
+                Buy Now - $39
+              </button>
+            </div>
+          </div>
+        )}
+      </nav>
+
+      {/* Smooth Scroll CSS */}
+      <style jsx global>{`
+        html {
+          scroll-behavior: smooth;
+          scroll-padding-top: 100px;
+        }
+      `}</style>
+
       {/* Animated Gradient Mesh Background */}
       <div className="fixed inset-0 z-0 animated-gradient">
         <div 
@@ -113,7 +222,7 @@ export default function Home() {
       </div>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-6 py-20 overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center px-6 py-20 pt-24 overflow-hidden">
         {/* Floating Gradient Orbs */}
         <div className="absolute top-20 left-10 w-96 h-96 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 blur-3xl floating-element opacity-40" />
         <div className="absolute bottom-20 right-10 w-80 h-80 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-500/20 blur-3xl floating-element opacity-40" style={{ animationDelay: '1s' }} />
@@ -182,7 +291,7 @@ export default function Home() {
       </section>
 
       {/* Problem Section */}
-      <section className="section-reveal relative py-32 px-6 parallax-slow">
+      <section id="features" className="section-reveal relative py-32 px-6 parallax-slow">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/30 to-transparent -z-10" />
         
         <div className="max-w-5xl mx-auto">
@@ -320,7 +429,7 @@ export default function Home() {
       </section>
 
       {/* What's Inside Section */}
-      <section className="section-reveal relative py-32 px-6">
+      <section id="whats-inside" className="section-reveal relative py-32 px-6">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/20 to-transparent -z-10" />
         
         <div className="max-w-6xl mx-auto">
@@ -676,7 +785,7 @@ export default function Home() {
       </section>
 
       {/* Pricing Section */}
-      <section className="section-reveal relative py-32 px-6">
+      <section id="pricing" className="section-reveal relative py-32 px-6">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/20 to-transparent -z-10" />
         
         <div className="max-w-5xl mx-auto">
