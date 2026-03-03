@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createSession, cleanupOldSessions } from '@/lib/sessions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,27 +10,33 @@ export async function POST(request: NextRequest) {
         error: 'Wallet address required',
       }, { status: 400 });
     }
-    
-    // Price: $39 in USDC (6 decimals)
-    const amount = '39000000'; // 39 USDC
-    
-    // Create payment session
-    const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    
-    // TODO: Store session in database/cache with:
-    // - sessionId
-    // - buyer address
-    // - amount
-    // - timestamp
-    // - status: 'pending'
+
+    // Validate Ethereum address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      return NextResponse.json({ 
+        error: 'Invalid Ethereum address',
+      }, { status: 400 });
+    }
+
+    // Clean up old sessions (runs in background)
+    cleanupOldSessions();
+
+    // Create new payment session
+    const session = createSession(address);
+
+    // Get payment recipient from environment
+    const recipient = process.env.X402_WALLET_ADDRESS || 
+                     process.env.PAYMENT_WALLET_ADDRESS || 
+                     '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78';
     
     return NextResponse.json({
       success: true,
-      sessionId,
-      amount,
+      sessionId: session.sessionId,
+      amount: session.amount,
       currency: 'USDC',
       network: 'base',
-      recipient: process.env.PAYMENT_WALLET_ADDRESS || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78',
+      recipient,
+      expiresAt: session.expiresAt,
     });
     
   } catch (error) {

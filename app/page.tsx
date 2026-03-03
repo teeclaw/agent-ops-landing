@@ -1,8 +1,42 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import USDCPaymentModal from '@/components/USDCPaymentModal';
 
 export default function Home() {
+  // USDC payment modal state
+  const [showUSDCModal, setShowUSDCModal] = useState(false);
+  const [paymentData, setPaymentData] = useState<any>(null);
+
+  // Handle USDC payment button click
+  const handleUSDCPayment = async () => {
+    try {
+      // For now, we'll prompt for wallet address
+      // In production, this would use wallet connection (MetaMask, etc.)
+      const address = prompt('Enter your wallet address to receive payment confirmation:');
+      
+      if (!address) return;
+
+      const response = await fetch('/api/payments/x402/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPaymentData(data);
+        setShowUSDCModal(true);
+      } else {
+        alert('Failed to initiate payment. Please try again.');
+      }
+    } catch (error) {
+      console.error('Payment initiation error:', error);
+      alert('Payment initiation failed. Please try again.');
+    }
+  };
+
   useEffect(() => {
     // Enhanced GSAP animations
     if (typeof window !== 'undefined') {
@@ -135,7 +169,10 @@ export default function Home() {
               <span className="block text-base font-normal mt-1 relative z-10">$39</span>
             </button>
             
-            <button className="btn-premium group relative px-10 py-5 glass text-white rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(59,130,246,0.3)] min-w-[240px] border-2 border-blue-500/30 hover:border-blue-500/60 overflow-hidden">
+            <button 
+              onClick={handleUSDCPayment}
+              className="btn-premium group relative px-10 py-5 glass text-white rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(59,130,246,0.3)] min-w-[240px] border-2 border-blue-500/30 hover:border-blue-500/60 overflow-hidden"
+            >
               <span className="relative z-10">Pay with USDC</span>
               <span className="block text-base font-normal mt-1 relative z-10 text-slate-300 group-hover:text-white">$39</span>
             </button>
@@ -723,7 +760,10 @@ export default function Home() {
                 >
                   Pay with Card - $39
                 </button>
-                <button className="btn-premium w-full py-5 glass text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 border-2 border-blue-500/30 hover:border-blue-500/60">
+                <button 
+                  onClick={handleUSDCPayment}
+                  className="btn-premium w-full py-5 glass text-white rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 border-2 border-blue-500/30 hover:border-blue-500/60"
+                >
                   Pay with USDC - $39
                 </button>
               </div>
@@ -831,7 +871,10 @@ export default function Home() {
               <span className="block text-lg font-normal mt-1">$39</span>
             </button>
             
-            <button className="btn-premium px-12 py-6 glass text-white rounded-2xl font-bold text-xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(59,130,246,0.3)] min-w-[260px] border-2 border-blue-500/30 hover:border-blue-500/60">
+            <button 
+              onClick={handleUSDCPayment}
+              className="btn-premium px-12 py-6 glass text-white rounded-2xl font-bold text-xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(59,130,246,0.3)] min-w-[260px] border-2 border-blue-500/30 hover:border-blue-500/60"
+            >
               <span className="block">Pay with USDC</span>
               <span className="block text-lg font-normal text-slate-300 mt-1">$39</span>
             </button>
@@ -887,6 +930,13 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* USDC Payment Modal */}
+      <USDCPaymentModal
+        isOpen={showUSDCModal}
+        onClose={() => setShowUSDCModal(false)}
+        paymentData={paymentData}
+      />
     </div>
   );
 }
