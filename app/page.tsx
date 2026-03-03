@@ -115,8 +115,7 @@ export default function Home() {
           <div className="hero-emoji inline-block mb-8 text-8xl">📺</div>
           
           <h1 className="hero-title font-display text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-8 leading-[1.1]">
-            <span className="block">I Spent <span className="gradient-text-gold">$10</span> on an</span>
-            <span className="block">Onchain Identity.</span>
+            <span className="block">I Registered <span className="gradient-text-gold">On-Chain</span>.</span>
             <span className="block mt-4 text-4xl md:text-6xl lg:text-7xl gradient-text-blue">
               What I Built Changed Everything.
             </span>
@@ -141,7 +140,7 @@ export default function Home() {
 
           <div className="inline-block glass rounded-2xl px-6 py-3 mb-8 border border-amber-500/20">
             <p className="text-sm text-slate-300">
-              <span className="text-amber-400 font-semibold">📄 PDF download</span> • 80+ pages • Instant access • No subscription
+              <span className="text-amber-400 font-semibold">📄 PDF download</span> • 80 pages • Instant access • No subscription
             </p>
           </div>
 
@@ -676,7 +675,7 @@ export default function Home() {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="max-w-2xl mx-auto">
             {/* PDF Option */}
             <div className="glass rounded-3xl p-10 border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/10 premium-card relative overflow-hidden">
               <div className="absolute top-6 right-6 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-bold rounded-full pulse-glow shadow-lg">
@@ -724,51 +723,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* HTML Option */}
-            <div className="glass rounded-3xl p-10 border border-white/10 relative overflow-hidden opacity-75">
-              <div className="absolute top-6 right-6 px-4 py-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white text-xs font-bold rounded-full">
-                COMING SOON
-              </div>
-              
-              <div className="mb-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="text-4xl">🌐</div>
-                  <div>
-                    <h3 className="font-display text-3xl font-bold text-white">HTML Lifetime Access</h3>
-                    <p className="text-slate-400 font-semibold">Always Updated</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mb-8">
-                <div className="text-6xl font-bold text-white mb-2">$199</div>
-                <p className="text-slate-400 text-sm">one-time payment</p>
-              </div>
-              
-              <ul className="space-y-4 mb-10 text-base">
-                {[
-                  'Everything in the PDF, plus:',
-                  'Always-updated content (crypto moves fast)',
-                  'Interactive code examples',
-                  'Search across all chapters',
-                  'Mobile-optimized reading experience',
-                  '1 year of free updates',
-                ].map((feature, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <span className="text-slate-500 text-xl flex-shrink-0">✓</span>
-                    <span className="text-slate-400">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <p className="text-sm text-slate-400 mb-4">
-                PDF buyers upgrade for $160 (save $39).
-              </p>
-              
-              <button className="w-full py-5 bg-slate-800 text-slate-400 rounded-2xl font-bold text-lg cursor-not-allowed" disabled>
-                Join Waitlist
-              </button>
-            </div>
+
           </div>
         </div>
       </section>
