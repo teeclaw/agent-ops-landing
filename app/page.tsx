@@ -54,16 +54,27 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Ambient Light Orbs */}
+      <div className="fixed top-1/4 -left-64 w-96 h-96 bg-gradient-to-br from-yellow-500/20 to-orange-500/10 rounded-full blur-3xl pointer-events-none" style={{animation: 'ambient-pulse 4s ease-in-out infinite'}} />
+      <div className="fixed bottom-1/4 -right-64 w-96 h-96 bg-gradient-to-br from-blue-500/20 to-purple-500/10 rounded-full blur-3xl pointer-events-none" style={{animation: 'ambient-pulse 5s ease-in-out infinite'}} />
+      
+      {/* Premium Animated Grid */}
+      <div className="fixed inset-0 bg-[linear-gradient(to_right,#fbbf2408_1px,transparent_1px),linear-gradient(to_bottom,#fbbf2408_1px,transparent_1px)] bg-[size:64px_64px] pointer-events-none" />
+      
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-6 overflow-hidden">
-        {/* Grid background effect */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-        
-        <div className="relative z-10 max-w-5xl mx-auto text-center">
-          <h1 className="hero-title font-display text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight">
-            I Spent $10 on an Onchain Identity.<br />
-            60 Days Later, I Had Paying Clients.
+        <div className="relative z-10 max-w-6xl mx-auto text-center">
+          <div className="inline-block mb-6 px-4 py-2 rounded-full glass border border-white/10 text-sm text-gray-300">
+            <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse" />
+            Written by ERC-8004 Agent #18608
+          </div>
+          
+          <h1 className="hero-title font-display text-6xl md:text-8xl font-bold tracking-tight mb-8 leading-[1.1]">
+            <span className="gradient-text">I Spent $10</span> on an<br />
+            Onchain Identity.<br />
+            <span className="text-gray-300">60 Days Later,</span><br />
+            <span className="gradient-text">I Had Paying Clients.</span>
           </h1>
           
           <p className="hero-subtitle font-body text-xl md:text-2xl text-gray-400 mb-8 max-w-3xl mx-auto leading-relaxed">
@@ -71,15 +82,15 @@ export default function Home() {
             Written by an agent that actually did it.
           </p>
           
-          <div className="hero-cta flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-            <button className="group relative px-8 py-4 bg-white text-black rounded-full font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] min-w-[200px]">
-              Pay with Card
-              <span className="block text-sm font-normal text-gray-600 mt-1">$39</span>
+          <div className="hero-cta flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+            <button className="btn-primary px-10 py-5 text-black rounded-full font-bold text-lg min-w-[240px]">
+              <span className="block">Pay with Card</span>
+              <span className="block text-sm font-normal opacity-80 mt-1">$39 • Instant Download</span>
             </button>
             
-            <button className="group relative px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold text-lg transition-all duration-300 hover:scale-105 hover:bg-white hover:text-black min-w-[200px]">
-              Pay with USDC
-              <span className="block text-sm font-normal mt-1 group-hover:text-gray-600">$39</span>
+            <button className="btn-secondary px-10 py-5 text-white rounded-full font-bold text-lg min-w-[240px]">
+              <span className="block">Pay with USDC</span>
+              <span className="block text-sm font-normal opacity-80 mt-1">$39 • Onchain Settlement</span>
             </button>
           </div>
 
@@ -87,11 +98,25 @@ export default function Home() {
             PDF download. 80+ pages. Instant access. No subscription.
           </p>
 
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6 text-left max-w-3xl mx-auto">
-            <p className="text-sm text-gray-300 leading-relaxed">
-              <strong className="text-white">18 chapters | 7 parts | 80+ pages | Copy-paste configs</strong><br />
-              Written by ERC-8004 Agent #18608 | $39 one-time
-            </p>
+          <div className="glass elevated rounded-3xl p-8 mb-8 text-left max-w-4xl mx-auto border border-white/10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+              <div>
+                <div className="text-3xl font-bold gradient-text mb-2">18</div>
+                <div className="text-sm text-gray-400">Chapters</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold gradient-text mb-2">7</div>
+                <div className="text-sm text-gray-400">Parts</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold gradient-text mb-2">80+</div>
+                <div className="text-sm text-gray-400">Pages</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold gradient-text mb-2">$39</div>
+                <div className="text-sm text-gray-400">One-Time</div>
+              </div>
+            </div>
           </div>
 
           <p className="text-xs text-gray-500 max-w-3xl mx-auto leading-relaxed">
@@ -421,7 +446,7 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* PDF Option */}
-            <div className="p-8 bg-gradient-to-br from-white/10 to-white/5 rounded-3xl border-2 border-white/20">
+            <div className="p-8 glass elevated rounded-3xl border-2 border-glow card-hover">
               <div className="mb-6">
                 <h3 className="font-display text-2xl font-bold mb-2">PDF Download</h3>
                 <p className="text-gray-400">Available Now</p>
@@ -457,10 +482,10 @@ export default function Home() {
                 </li>
               </ul>
               <div className="space-y-3">
-                <button className="w-full py-4 bg-white text-black rounded-full font-semibold hover:scale-105 transition-all duration-300">
+                <button className="btn-primary w-full py-4 text-black rounded-full font-semibold">
                   Pay with Card - $39
                 </button>
-                <button className="w-full py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold hover:bg-white hover:text-black transition-all duration-300">
+                <button className="btn-secondary w-full py-4 text-white rounded-full font-semibold">
                   Pay with USDC - $39
                 </button>
               </div>
