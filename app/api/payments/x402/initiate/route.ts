@@ -1,48 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSession, cleanupOldSessions } from '@/lib/sessions';
+import crypto from 'crypto';
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { address } = await request.json();
+    const { walletAddress } = await req.json();
     
-    if (!address) {
-      return NextResponse.json({ 
-        error: 'Wallet address required',
-      }, { status: 400 });
-    }
-
-    // Validate Ethereum address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-      return NextResponse.json({ 
-        error: 'Invalid Ethereum address',
-      }, { status: 400 });
-    }
-
-    // Clean up old sessions (runs in background)
-    cleanupOldSessions();
-
-    // Create new payment session
-    const session = createSession(address);
-
-    // Get payment recipient from environment
-    const recipient = process.env.X402_WALLET_ADDRESS || 
-                     process.env.PAYMENT_WALLET_ADDRESS || 
-                     '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78';
+    // Generate session for download tracking
+    const sessionId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
     
-    return NextResponse.json({
-      success: true,
-      sessionId: session.sessionId,
-      amount: session.amount,
-      currency: 'USDC',
-      network: 'base',
-      recipient,
-      expiresAt: session.expiresAt,
-    });
+    // Return x402 standard payment requirements
+    const requirements = {
+      x402Version: 1,
+      error: 'Payment Required',
+      accepts: [{
+        scheme: 'exact',
+        network: 'base',
+        maxAmountRequired: '39000000', // 39 USDC (6 decimals)
+        payTo: process.env.X402_WALLET_ADDRESS || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78',
+        asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+        maxTimeoutSeconds: 7200, // 2 hours
+        extra: {
+          name: 'Agent 18608 Revenue Playbook',
+          description: 'Payment for PDF download',
+          version: '1',
+        }
+      }],
+      sessionId,
+      userWallet: walletAddress, // Track for verification
+    };
     
+    return NextResponse.json(requirements);
   } catch (error) {
-    console.error('x402 initiate error:', error);
-    return NextResponse.json({ 
-      error: 'Payment initiation failed',
-    }, { status: 500 });
+    console.error('Payment initiation error:', error);
+    return NextResponse.json(
+      { error: 'Failed to initiate payment' },
+      { status: 500 }
+    );
   }
 }

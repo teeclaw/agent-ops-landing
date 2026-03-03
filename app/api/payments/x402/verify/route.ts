@@ -1,12 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, updateSession, isSessionExpired } from '@/lib/sessions';
-import { verifyUSDCTransfer } from '@/lib/base-rpc';
+import { verifyPaymentWithOnchain } from '@/lib/x402-verify';
 import crypto from 'crypto';
 
-// Generate signed download URL (same logic as download/generate)
-function generateSignedUrl(sessionId: string): string {
-  const secret = process.env.DOWNLOAD_SECRET || 'change-me-in-production';
-  const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+export async function POST(req: NextRequest) {
+  try {
+    const { sessionId, paymentProof, txHash } = await req.json();
+    
+    if (!sessionId) {
+      return NextResponse.json({ 
+        error: 'Session ID required',
+      }, { status: 400 });
+    }
+    
+    // Support both x402 proof and simple tx hash
+    const proof = paymentProof || { txHash };
+    
+    if (!proof || (!paymentProof && !txHash)) {
+      return NextResponse.json({ 
+        error: 'Payment proof or transaction hash required',
+      }, { status: 400 });
+    }
+    
+    // Verify with onchain.fi aggregator
+    const result = await verifyPaymentWithOnchain(proof, {
+      amount: '39.00',
+      token: 'USDC',
+      network: 'base',
+      recipient: process.env.X402_WALLET_ADDRESS || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78',
+    });
+    
+    if (result.verified) {
+      // Generate signed download URL (24h expiry)
+      const downloadUrl = generateDownloadUrl(sessionId);
+      
+      return NextResponse.json({
+        success: true,
+        verified: true,
+        status: 'confirmed',
+        downloadUrl,
+        txHash: result.txHash,
+        facilitator: result.facilitator,
+      });
+    }
+    
+    if (result.error) {
+      return NextResponse.json({
+        success: false,
+        verified: false,
+        status: 'failed',
+        error: result.error
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({ 
+      success: false,
+      verified: false,
+      status: 'pending' 
+    });
+    
+  } catch (error) {
+    console.error('Verification error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        verified: false,
+        error: 'Verification failed' 
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Helper: Generate signed download URL
+function generateDownloadUrl(sessionId: string): string {
+  const secret = process.env.DOWNLOAD_SECRET || 'fallback-secret';
+  const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24h
   
   const data = `${sessionId}:${expiresAt}`;
   const signature = crypto
@@ -14,108 +82,7 @@ function generateSignedUrl(sessionId: string): string {
     .update(data)
     .digest('hex');
   
-  return `/api/download/file?id=${sessionId}&expires=${expiresAt}&sig=${signature}`;
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { sessionId, txHash } = await request.json();
-    
-    if (!sessionId) {
-      return NextResponse.json({ 
-        error: 'Session ID required',
-      }, { status: 400 });
-    }
-
-    // Get session
-    const session = getSession(sessionId);
-    
-    if (!session) {
-      return NextResponse.json({ 
-        error: 'Session not found',
-      }, { status: 404 });
-    }
-
-    // Check if expired
-    if (isSessionExpired(session)) {
-      updateSession(sessionId, { status: 'expired' });
-      return NextResponse.json({ 
-        error: 'Payment session expired',
-      }, { status: 400 });
-    }
-
-    // If already confirmed, return download URL
-    if (session.status === 'confirmed') {
-      return NextResponse.json({
-        success: true,
-        verified: true,
-        downloadUrl: generateSignedUrl(sessionId),
-      });
-    }
-
-    // If no txHash provided, just return current status
-    if (!txHash) {
-      return NextResponse.json({
-        success: true,
-        verified: false,
-        status: session.status,
-      });
-    }
-
-    // Validate tx hash format
-    if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-      return NextResponse.json({ 
-        error: 'Invalid transaction hash',
-      }, { status: 400 });
-    }
-
-    // Get expected recipient from environment
-    const recipient = process.env.X402_WALLET_ADDRESS || 
-                     process.env.PAYMENT_WALLET_ADDRESS || 
-                     '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78';
-
-    // Verify transaction on Base
-    const verification = await verifyUSDCTransfer(
-      txHash,
-      recipient,
-      session.amount
-    );
-
-    if (!verification.verified) {
-      updateSession(sessionId, { 
-        status: 'failed',
-        txHash 
-      });
-      
-      return NextResponse.json({
-        success: false,
-        verified: false,
-        error: verification.error || 'Payment verification failed',
-      }, { status: 400 });
-    }
-
-    // Payment verified! Update session
-    updateSession(sessionId, { 
-      status: 'confirmed',
-      txHash,
-      confirmedAt: Date.now()
-    });
-
-    // Generate download URL
-    const downloadUrl = generateSignedUrl(sessionId);
-
-    // TODO: Send email with download link (optional)
-
-    return NextResponse.json({
-      success: true,
-      verified: true,
-      downloadUrl,
-    });
-    
-  } catch (error) {
-    console.error('x402 verify error:', error);
-    return NextResponse.json({ 
-      error: 'Verification failed',
-    }, { status: 500 });
-  }
+  const token = Buffer.from(`${data}:${signature}`).toString('base64url');
+  
+  return `/api/download/file?token=${token}`;
 }

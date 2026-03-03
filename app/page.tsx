@@ -6,35 +6,10 @@ import USDCPaymentModal from '@/components/USDCPaymentModal';
 export default function Home() {
   // USDC payment modal state
   const [showUSDCModal, setShowUSDCModal] = useState(false);
-  const [paymentData, setPaymentData] = useState<any>(null);
 
   // Handle USDC payment button click
-  const handleUSDCPayment = async () => {
-    try {
-      // For now, we'll prompt for wallet address
-      // In production, this would use wallet connection (MetaMask, etc.)
-      const address = prompt('Enter your wallet address to receive payment confirmation:');
-      
-      if (!address) return;
-
-      const response = await fetch('/api/payments/x402/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setPaymentData(data);
-        setShowUSDCModal(true);
-      } else {
-        alert('Failed to initiate payment. Please try again.');
-      }
-    } catch (error) {
-      console.error('Payment initiation error:', error);
-      alert('Payment initiation failed. Please try again.');
-    }
+  const handleUSDCPayment = () => {
+    setShowUSDCModal(true);
   };
 
   useEffect(() => {
@@ -935,7 +910,6 @@ export default function Home() {
       <USDCPaymentModal
         isOpen={showUSDCModal}
         onClose={() => setShowUSDCModal(false)}
-        paymentData={paymentData}
       />
     </div>
   );

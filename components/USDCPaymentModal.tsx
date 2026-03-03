@@ -4,42 +4,72 @@ import { useState, useEffect } from 'react';
 
 interface PaymentData {
   sessionId: string;
-  amount: string;
-  recipient: string;
-  network: string;
-  expiresAt: number;
+  amount?: string;
+  recipient?: string;
+  network?: string;
+  expiresAt?: number;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  paymentData: PaymentData | null;
 }
 
-export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props) {
+export default function USDCPaymentModal({ isOpen, onClose }: Props) {
+  const [walletAddress, setWalletAddress] = useState('');
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [txHash, setTxHash] = useState('');
-  const [status, setStatus] = useState<'input' | 'verifying' | 'confirmed' | 'error'>('input');
+  const [status, setStatus] = useState<'input' | 'ready' | 'verifying' | 'confirmed' | 'error'>('input');
   const [errorMessage, setErrorMessage] = useState('');
   const [downloadUrl, setDownloadUrl] = useState('');
+  const [facilitator, setFacilitator] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Reset state when modal opens with new data
+  // Reset state when modal opens
   useEffect(() => {
-    if (isOpen && paymentData) {
+    if (isOpen) {
+      setWalletAddress('');
+      setPaymentData(null);
       setTxHash('');
       setStatus('input');
       setErrorMessage('');
       setDownloadUrl('');
+      setFacilitator('');
       setCopied(false);
     }
-  }, [isOpen, paymentData]);
+  }, [isOpen]);
 
-  if (!isOpen || !paymentData) return null;
+  if (!isOpen) return null;
 
-  const { recipient, amount, sessionId } = paymentData;
-  
-  // Format amount (convert from wei to human readable)
-  const usdcAmount = (parseInt(amount) / 1_000_000).toFixed(2);
+  const recipient = process.env.NEXT_PUBLIC_X402_WALLET || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78';
+  const usdcAmount = '39.00';
+
+  const handleInitiatePayment = async () => {
+    setStatus('ready');
+    setErrorMessage('');
+
+    try {
+      const response = await fetch('/api/payments/x402/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: walletAddress || null }),
+      });
+
+      const data = await response.json();
+
+      if (data.sessionId) {
+        setPaymentData(data);
+        setStatus('ready');
+      } else {
+        setStatus('error');
+        setErrorMessage(data.error || 'Failed to initiate payment');
+      }
+    } catch (error) {
+      setStatus('error');
+      setErrorMessage('Payment initiation failed. Please try again.');
+      console.error('Initiation error:', error);
+    }
+  };
 
   const handleCopyAddress = async () => {
     try {
@@ -52,7 +82,7 @@ export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props
   };
 
   const handleVerifyPayment = async () => {
-    if (!txHash) {
+    if (!txHash || !paymentData) {
       setErrorMessage('Please enter a transaction hash');
       return;
     }
@@ -65,7 +95,7 @@ export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          sessionId,
+          sessionId: paymentData.sessionId,
           txHash: txHash.trim()
         }),
       });
@@ -75,6 +105,7 @@ export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props
       if (data.verified && data.downloadUrl) {
         setStatus('confirmed');
         setDownloadUrl(data.downloadUrl);
+        setFacilitator(data.facilitator || '');
       } else {
         setStatus('error');
         setErrorMessage(data.error || 'Payment verification failed. Please check your transaction hash.');
@@ -114,13 +145,46 @@ export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props
           <div className="space-y-4">
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
               <div className="text-green-500 text-4xl mb-2">✓</div>
-              <p className="text-green-400 font-medium">Payment Confirmed!</p>
+              <p className="text-green-400 font-medium mb-2">Payment Confirmed!</p>
+              {facilitator && (
+                <p className="text-sm text-slate-400">
+                  Verified by: {facilitator}
+                </p>
+              )}
             </div>
             <button
               onClick={handleDownload}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
             >
               Download Your Playbook
+            </button>
+          </div>
+        ) : status === 'input' ? (
+          // Wallet address input
+          <div className="space-y-6">
+            <p className="text-slate-300">
+              Enter your wallet address to receive payment confirmation (optional):
+            </p>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2">Your Wallet Address</label>
+              <input
+                type="text"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+                placeholder="0x... (optional)"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+            </div>
+            {errorMessage && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+                {errorMessage}
+              </div>
+            )}
+            <button
+              onClick={handleInitiatePayment}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              Continue to Payment
             </button>
           </div>
         ) : (
@@ -185,6 +249,13 @@ export default function USDCPaymentModal({ isOpen, onClose, paymentData }: Props
             {status === 'error' && errorMessage && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
                 {errorMessage}
+              </div>
+            )}
+
+            {/* Loading State */}
+            {status === 'verifying' && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-blue-400 text-sm">
+                Checking with payment validators...
               </div>
             )}
 
