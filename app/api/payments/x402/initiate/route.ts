@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       accepts: [{
         scheme: 'exact',
         network: 'base',
-        maxAmountRequired: '39000000', // 39 USDC (6 decimals)
+        maxAmountRequired: '390000', // 39 USDC (6 decimals)
         payTo: walletAddress,
         asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
         maxTimeoutSeconds: 7200, // 2 hours
