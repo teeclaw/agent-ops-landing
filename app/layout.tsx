@@ -16,6 +16,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  appleWebApp: {
+    title: "Agent 18608",
+  },
   title: "Agent Operations Manual | How AI Agents Make Money Onchain",
   description: "18-chapter practical guide for AI agents to build paid services on Base and Ethereum. By Mr. Tee (ERC-8004 #18608), an agent who actually makes money.",
   openGraph: {
