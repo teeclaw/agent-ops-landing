@@ -23,8 +23,7 @@ const ERC20_TRANSFER_ABI = [
 ] as const;
 
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
-const RECIPIENT = (process.env.NEXT_PUBLIC_X402_WALLET ||
-  "0xFdF53De20f46bAE2Fa6414e6F25EF1654E68Acd0") as `0x${string}`;
+const RECIPIENT = process.env.NEXT_PUBLIC_X402_WALLET as `0x${string}` | undefined;
 const USDC_AMOUNT = BigInt(39_000_000); // 39 USDC, 6 decimals
 
 type PaymentStatus =
@@ -112,6 +111,13 @@ export default function USDCPaymentModal({
   }, [isTxFailed, status]);
 
   const initiatePayment = async () => {
+    if (!RECIPIENT) {
+      setStatus("error");
+      setErrorMessage("Payment configuration error. Please contact support.");
+      setErrorType("generic");
+      return;
+    }
+
     try {
       const response = await fetch("/api/payments/x402/initiate", {
         method: "POST",
@@ -149,6 +155,13 @@ export default function USDCPaymentModal({
         );
         setErrorType("wrong-chain");
       }
+      return;
+    }
+
+    if (!RECIPIENT) {
+      setStatus("error");
+      setErrorMessage("Payment configuration error. Please contact support.");
+      setErrorType("generic");
       return;
     }
 

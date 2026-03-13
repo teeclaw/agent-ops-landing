@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPaymentWithOnchain } from '@/lib/x402-verify';
-import crypto from 'crypto';
+import { generateDownloadUrl } from '@/lib/download-url';
+import { storePayment } from '@/lib/payments';
 
 const TX_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
@@ -30,18 +31,41 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
     
+    const recipientAddress = process.env.X402_WALLET_ADDRESS;
+    if (!recipientAddress) {
+      console.error('X402_WALLET_ADDRESS is not configured');
+      return NextResponse.json(
+        { success: false, verified: false, error: 'Payment system misconfigured' },
+        { status: 500 }
+      );
+    }
+
     // Verify with onchain.fi aggregator
     const result = await verifyPaymentWithOnchain(proof, {
       amount: '39.00',
       token: 'USDC',
       network: 'base',
-      recipient: process.env.X402_WALLET_ADDRESS || '0x1Af5f519DC738aC0f3B58B19A4bB8A8441937e78',
+      recipient: recipientAddress,
     });
     
     if (result.verified) {
       // Generate signed download URL (24h expiry)
       const downloadUrl = generateDownloadUrl(sessionId);
-      
+
+      // Store payment in Redis (non-fatal on failure)
+      try {
+        await storePayment({
+          txHash: result.txHash,
+          sessionId,
+          downloadUrl,
+          facilitator: result.facilitator,
+          source: 'x402',
+          verifiedAt: new Date().toISOString(),
+        });
+      } catch (storeError) {
+        console.error('Failed to store payment in Redis:', storeError);
+      }
+
       return NextResponse.json({
         success: true,
         verified: true,
@@ -80,22 +104,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Helper: Generate signed download URL
-function generateDownloadUrl(sessionId: string): string {
-  const secret = process.env.DOWNLOAD_SECRET;
-  if (!secret) {
-    throw new Error('DOWNLOAD_SECRET is not configured');
-  }
-
-  const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24h
-
-  const data = `${sessionId}:${expiresAt}`;
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(data)
-    .digest('hex');
-
-  const token = Buffer.from(`${data}:${signature}`).toString('base64url');
-
-  return `/api/download/file?token=${token}`;
-}

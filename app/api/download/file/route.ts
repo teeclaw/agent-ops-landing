@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     console.log('Download requested:', { purchaseId, timestamp: new Date().toISOString() });
 
     // Serve the PDF file
-    const pdfPath = path.join(process.cwd(), 'public', 'agent-operations-manual.pdf');
+    const pdfPath = path.join(process.cwd(), 'private', 'agent-ops-manual-v1.0.0.pdf');
 
     try {
       const fileBuffer = await fs.readFile(pdfPath);
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': 'attachment; filename="agent-operations-manual.pdf"',
+          'Content-Disposition': 'attachment; filename="agent-ops-manual-v1.0.0.pdf"',
           'Cache-Control': 'private, no-cache',
         },
       });

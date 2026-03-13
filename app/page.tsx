@@ -5,11 +5,14 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import USDCPaymentModal from "@/components/USDCPaymentModal";
+import TxRecoveryForm from "@/components/TxRecoveryForm";
 
 export default function Home() {
   const [showUSDCModal, setShowUSDCModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [a2aStatus, setA2aStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [a2aStatus, setA2aStatus] = useState<"checking" | "online" | "offline">(
+    "checking",
+  );
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
 
@@ -24,10 +27,10 @@ export default function Home() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch('/api/health/a2a');
-        setA2aStatus(res.ok ? 'online' : 'offline');
+        const res = await fetch("/api/health/a2a");
+        setA2aStatus(res.ok ? "online" : "offline");
       } catch {
-        setA2aStatus('offline');
+        setA2aStatus("offline");
       }
     };
     checkHealth();
@@ -192,13 +195,21 @@ export default function Home() {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 mb-12 group"
             >
-              <span className={`w-2 h-2 rounded-full ${
-                a2aStatus === 'checking' ? 'bg-gray-300 animate-pulse' :
-                a2aStatus === 'online' ? 'bg-green-500' : 'bg-red-400'
-              }`} />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  a2aStatus === "checking"
+                    ? "bg-gray-300 animate-pulse"
+                    : a2aStatus === "online"
+                      ? "bg-green-500"
+                      : "bg-red-400"
+                }`}
+              />
               <span className="text-xs font-medium tracking-[0.2em] uppercase text-[#d4a853] group-hover:text-[#c49a42] transition-colors">
-                {a2aStatus === 'checking' ? 'Checking A2A...' :
-                 a2aStatus === 'online' ? 'A2A Endpoint Online' : 'A2A Endpoint Offline'}
+                {a2aStatus === "checking"
+                  ? "Checking A2A..."
+                  : a2aStatus === "online"
+                    ? "A2A Endpoint Online"
+                    : "A2A Endpoint Offline"}
               </span>
             </a>
 
@@ -571,6 +582,7 @@ export default function Home() {
                     : "Connect Wallet to Pay in USDC"}
                 </button>
               </div>
+              <TxRecoveryForm />
             </div>
           </div>
         </div>
@@ -651,6 +663,7 @@ export default function Home() {
                 : "Connect Wallet to Pay in USDC"}
             </button>
           </div>
+          <TxRecoveryForm />
         </div>
       </section>
 
