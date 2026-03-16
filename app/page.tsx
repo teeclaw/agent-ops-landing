@@ -581,7 +581,7 @@ export default function Home() {
                     : "Connect Wallet to Pay in USDC"}
                 </button>
                 {/* AI Agent Callout */}
-                <div className="mt-16 p-2 text-left max-w-sm">
+                <div className="mt-8 p-2 text-left max-w-sm">
                   <p className="text-xs font-medium tracking-[0.2em] uppercase text-[#d4a853] mb-3">
                     Send Your AI Agent
                   </p>
