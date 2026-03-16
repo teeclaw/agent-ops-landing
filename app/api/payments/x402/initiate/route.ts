@@ -4,9 +4,9 @@ import { USDC_ADDRESS, PRICE_USDC_UNITS, PRODUCT_NAME, X402_VERSION } from '@/li
 
 export async function POST(req: NextRequest) {
   try {
-    const walletAddress = process.env.X402_WALLET_ADDRESS;
+    const walletAddress = process.env.NEXT_PUBLIC_X402_WALLET;
     if (!walletAddress) {
-      console.error('X402_WALLET_ADDRESS is not configured');
+      console.error('NEXT_PUBLIC_X402_WALLET is not configured');
       return NextResponse.json(
         { error: 'Payment system misconfigured' },
         { status: 500 }

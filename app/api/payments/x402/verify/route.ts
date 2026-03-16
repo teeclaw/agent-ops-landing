@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const recipientAddress = process.env.X402_WALLET_ADDRESS;
+    const recipientAddress = process.env.NEXT_PUBLIC_X402_WALLET;
     if (!recipientAddress) {
-      console.error('X402_WALLET_ADDRESS is not configured');
+      console.error('NEXT_PUBLIC_X402_WALLET is not configured');
       return NextResponse.json(
         { success: false, verified: false, error: 'Payment system misconfigured' },
         { status: 500 }
