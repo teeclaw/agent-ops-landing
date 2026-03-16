@@ -2,34 +2,48 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
+  useAccount,
   useChainId,
   useSwitchChain,
-  useWriteContract,
-  useWaitForTransactionReceipt,
+  useSignTypedData,
 } from "wagmi";
 import { base } from "wagmi/chains";
-import { USDC_ADDRESS, PRICE_USDC_BIGINT, PRICE_DISPLAY, PRICE_USDC_HUMAN } from "@/lib/constants";
-
-const ERC20_TRANSFER_ABI = [
-  {
-    name: "transfer",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const;
+import {
+  USDC_ADDRESS,
+  PRICE_USDC_BIGINT,
+  PRICE_DISPLAY,
+  PRICE_USDC_HUMAN,
+  PRICE_USDC_UNITS,
+  BASE_CHAIN_ID,
+  ONCHAIN_INTERMEDIATE_ADDRESS,
+  X402_VERSION,
+} from "@/lib/constants";
 
 const RECIPIENT = process.env.NEXT_PUBLIC_X402_WALLET as `0x${string}` | undefined;
+
+// EIP-712 domain for USDC on Base (ERC-3009 TransferWithAuthorization)
+const USDC_EIP712_DOMAIN = {
+  name: "USD Coin",
+  version: "2",
+  chainId: BASE_CHAIN_ID,
+  verifyingContract: USDC_ADDRESS,
+} as const;
+
+const TRANSFER_WITH_AUTHORIZATION_TYPES = {
+  TransferWithAuthorization: [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+    { name: "nonce", type: "bytes32" },
+  ],
+} as const;
 
 type PaymentStatus =
   | "initiating"
   | "ready"
   | "signing"
-  | "pending"
   | "verifying"
   | "confirmed"
   | "error";
@@ -38,6 +52,13 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   walletAddress: `0x${string}` | undefined;
+}
+
+/** Generate a random bytes32 nonce */
+function randomNonce(): `0x${string}` {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
 }
 
 export default function USDCPaymentModal({
@@ -52,28 +73,18 @@ export default function USDCPaymentModal({
     | "wrong-chain"
     | "rejected"
     | "insufficient"
-    | "reverted"
     | "verify-failed"
     | "generic"
   >("generic");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [facilitator, setFacilitator] = useState("");
+  const [txHash, setTxHash] = useState<string | null>(null);
 
+  const { address } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  const { signTypedDataAsync, reset: resetSign } = useSignTypedData();
   const isWrongChain = chainId !== base.id;
-
-  const {
-    writeContractAsync,
-    data: txHash,
-    reset: resetWrite,
-  } = useWriteContract();
-
-  const { isSuccess: isTxConfirmed, isError: isTxFailed } =
-    useWaitForTransactionReceipt({
-      hash: txHash,
-      chainId: base.id,
-    });
 
   // Reset state when modal opens
   useEffect(() => {
@@ -84,30 +95,12 @@ export default function USDCPaymentModal({
       setErrorType("generic");
       setDownloadUrl("");
       setFacilitator("");
-      resetWrite();
+      setTxHash(null);
+      resetSign();
       initiatePayment();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  // Auto-verify when tx confirms on-chain
-  useEffect(() => {
-    if (isTxConfirmed && txHash && sessionId && status === "pending") {
-      verifyPayment(txHash);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTxConfirmed, txHash, sessionId, status]);
-
-  // Handle tx revert
-  useEffect(() => {
-    if (isTxFailed && status === "pending") {
-      setStatus("error");
-      setErrorMessage(
-        "Transaction reverted on-chain. The transfer may have failed due to insufficient USDC balance or allowance.",
-      );
-      setErrorType("reverted");
-    }
-  }, [isTxFailed, status]);
 
   const initiatePayment = async () => {
     if (!RECIPIENT) {
@@ -142,7 +135,7 @@ export default function USDCPaymentModal({
   };
 
   const handlePay = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionId || !address) return;
 
     if (isWrongChain) {
       try {
@@ -168,15 +161,52 @@ export default function USDCPaymentModal({
     setErrorMessage("");
 
     try {
-      await writeContractAsync({
-        address: USDC_ADDRESS,
-        abi: ERC20_TRANSFER_ABI,
-        functionName: "transfer",
-        args: [RECIPIENT, PRICE_USDC_BIGINT],
-        chainId: base.id,
+      // Build TransferWithAuthorization parameters (matches @x402/evm exact)
+      const now = Math.floor(Date.now() / 1000);
+      const validAfterNum = now - 600; // 10 min grace (matches x402 SDK)
+      const validBeforeNum = now + 600; // 10 min timeout
+      const nonce = randomNonce();
+
+      // Sign EIP-712 TransferWithAuthorization
+      // onchain.fi requires `to` = their intermediate address (validates before routing to facilitators)
+      const signature = await signTypedDataAsync({
+        domain: USDC_EIP712_DOMAIN,
+        types: TRANSFER_WITH_AUTHORIZATION_TYPES,
+        primaryType: "TransferWithAuthorization",
+        message: {
+          from: address,
+          to: ONCHAIN_INTERMEDIATE_ADDRESS,
+          value: PRICE_USDC_BIGINT,
+          validAfter: BigInt(validAfterNum),
+          validBefore: BigInt(validBeforeNum),
+          nonce,
+        },
       });
-      // txHash is set by the hook; move to pending
-      setStatus("pending");
+
+      // Build x402 V1 payment header — onchain.fi facilitators use V1 format
+      // V1: { x402Version, scheme, network, payload } (no `accepted` wrapper)
+      const paymentPayload = {
+        x402Version: X402_VERSION,
+        scheme: "exact",
+        network: "base",
+        payload: {
+          signature,
+          authorization: {
+            from: address,
+            to: ONCHAIN_INTERMEDIATE_ADDRESS,
+            value: PRICE_USDC_UNITS,
+            validAfter: String(validAfterNum),
+            validBefore: String(validBeforeNum),
+            nonce,
+          },
+        },
+      };
+
+      // Base64-encode the payment header
+      const paymentHeader = btoa(JSON.stringify(paymentPayload));
+
+      // Send to server for settlement via onchain.fi
+      await verifyPayment(paymentHeader);
     } catch (err: unknown) {
       const error = err as { shortMessage?: string; name?: string };
       const message = error?.shortMessage || "";
@@ -186,7 +216,7 @@ export default function USDCPaymentModal({
         error?.name === "UserRejectedRequestError"
       ) {
         setStatus("error");
-        setErrorMessage("Transaction cancelled. You can try again when ready.");
+        setErrorMessage("Signature request cancelled. You can try again when ready.");
         setErrorType("rejected");
       } else if (
         message.includes("insufficient") ||
@@ -199,20 +229,20 @@ export default function USDCPaymentModal({
         setErrorType("insufficient");
       } else {
         setStatus("error");
-        setErrorMessage(message || "Transaction failed. Please try again.");
+        setErrorMessage(message || "Signing failed. Please try again.");
         setErrorType("generic");
       }
     }
-  }, [sessionId, isWrongChain, switchChain, writeContractAsync]);
+  }, [sessionId, address, isWrongChain, switchChain, signTypedDataAsync]);
 
-  const verifyPayment = async (hash: `0x${string}`) => {
+  const verifyPayment = async (paymentHeader: string) => {
     setStatus("verifying");
 
     try {
       const response = await fetch("/api/payments/x402/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, txHash: hash }),
+        body: JSON.stringify({ sessionId, paymentHeader }),
       });
 
       const data = await response.json();
@@ -221,30 +251,29 @@ export default function USDCPaymentModal({
         setStatus("confirmed");
         setDownloadUrl(data.downloadUrl);
         setFacilitator(data.facilitator || "");
+        setTxHash(data.txHash || null);
       } else {
         setStatus("error");
         setErrorMessage(
-          data.error || "Payment verification failed. Please contact support.",
+          data.error || "Payment settlement failed. Please contact support.",
         );
         setErrorType("verify-failed");
       }
     } catch {
       setStatus("error");
-      setErrorMessage("Verification request failed. Please try again.");
+      setErrorMessage("Settlement request failed. Please try again.");
       setErrorType("verify-failed");
     }
   };
 
   const handleRetry = () => {
-    if (errorType === "verify-failed" && txHash && sessionId) {
-      verifyPayment(txHash);
-    } else if (errorType === "reverted") {
-      // Full restart
-      resetWrite();
+    if (errorType === "verify-failed") {
+      // Full restart since we need a new signature
+      resetSign();
       setStatus("initiating");
       initiatePayment();
     } else {
-      // rejected, insufficient, generic — just go back to ready
+      // rejected, insufficient, generic — go back to ready
       setStatus("ready");
       setErrorMessage("");
     }
@@ -265,12 +294,10 @@ export default function USDCPaymentModal({
 
   const retryLabel =
     errorType === "verify-failed"
-      ? "Retry Verification"
-      : errorType === "reverted"
-        ? "Start Over"
-        : errorType === "wrong-chain"
-          ? "Switch to Base"
-          : "Try Again";
+      ? "Start Over"
+      : errorType === "wrong-chain"
+        ? "Switch to Base"
+        : "Try Again";
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -324,6 +351,12 @@ export default function USDCPaymentModal({
               </span>
             </div>
 
+            <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+              <p className="text-xs text-green-700">
+                Gasless payment — you only sign a message, no transaction fees.
+              </p>
+            </div>
+
             {isWrongChain && (
               <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
                 <p className="text-xs text-amber-700">
@@ -347,52 +380,24 @@ export default function USDCPaymentModal({
           <div className="flex flex-col items-center py-8 gap-4">
             <Spinner />
             <p className="text-sm text-gray-400">
-              Waiting for wallet approval...
+              Waiting for signature...
             </p>
             <p className="text-xs text-gray-300">
-              Confirm the transaction in your wallet
+              Sign the message in your wallet (no gas required)
             </p>
           </div>
         )}
 
-        {/* Pending */}
-        {status === "pending" && (
-          <div className="flex flex-col items-center py-8 gap-4">
-            <Spinner />
-            <p className="text-sm text-gray-400">Transaction submitted</p>
-            {txHash && (
-              <a
-                href={`https://basescan.org/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[#d4a853] hover:text-[#c49a42] transition-colors"
-              >
-                {truncatedHash} ↗
-              </a>
-            )}
-            <p className="text-xs text-gray-300">
-              Waiting for on-chain confirmation...
-            </p>
-          </div>
-        )}
-
-        {/* Verifying */}
+        {/* Verifying — onchain.fi is settling */}
         {status === "verifying" && (
           <div className="flex flex-col items-center py-8 gap-4">
             <Spinner />
             <p className="text-sm text-gray-400">
-              Verifying with validators...
+              Settling payment on-chain...
             </p>
-            {txHash && (
-              <a
-                href={`https://basescan.org/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[#d4a853] hover:text-[#c49a42] transition-colors"
-              >
-                {truncatedHash} ↗
-              </a>
-            )}
+            <p className="text-xs text-gray-300">
+              This usually takes a few seconds
+            </p>
           </div>
         )}
 
@@ -405,7 +410,7 @@ export default function USDCPaymentModal({
               </p>
               {facilitator && (
                 <p className="text-xs text-gray-400">
-                  Verified by: {facilitator}
+                  Settled by: {facilitator}
                 </p>
               )}
               {txHash && (
@@ -415,7 +420,7 @@ export default function USDCPaymentModal({
                   rel="noopener noreferrer"
                   className="text-xs text-[#d4a853] hover:text-[#c49a42] mt-2 inline-block"
                 >
-                  View transaction ↗
+                  {truncatedHash} ↗
                 </a>
               )}
             </div>

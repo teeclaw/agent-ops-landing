@@ -14,6 +14,7 @@ export default function Home() {
   const [a2aStatus, setA2aStatus] = useState<"checking" | "online" | "offline">(
     "checking",
   );
+  const [copied, setCopied] = useState(false);
   const { isConnected, address } = useAccount();
   const { openConnectModal } = useConnectModal();
 
@@ -230,7 +231,9 @@ export default function Home() {
             <div className="inline-flex items-center gap-3 bg-gray-50 rounded-full px-5 py-3 border border-gray-100">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d4a853]" />
               <span className="text-sm">
-                <span className="text-[#d4a853] font-semibold">{PRICE_DISPLAY}</span>
+                <span className="text-[#d4a853] font-semibold">
+                  {PRICE_DISPLAY}
+                </span>
                 <span className="text-gray-400">
                   {" "}
                   / PDF • 80 pages • Instant download
@@ -528,7 +531,7 @@ export default function Home() {
 
           <div className="fade-in flex flex-col md:flex-row items-center gap-12 md:gap-16">
             {/* Cover */}
-            <div className="flex-shrink-0 w-48 md:w-56">
+            <div className="flex-shrink-0 w-56 md:w-72 lg:w-80">
               <img
                 src="/cover.png"
                 alt="Agent 18608 Revenue Playbook cover"
@@ -564,9 +567,7 @@ export default function Home() {
 
               <div className="space-y-3 max-w-sm">
                 <button
-                  onClick={() =>
-                    window.open(GUMROAD_URL, "_blank")
-                  }
+                  onClick={() => window.open(GUMROAD_URL, "_blank")}
                   className="w-full py-4 bg-[#d4a853] hover:bg-[#c49a42] text-white rounded-lg font-medium text-sm transition-colors"
                 >
                   Pay with Card · {PRICE_DISPLAY}
@@ -579,7 +580,68 @@ export default function Home() {
                     ? `Pay with USDC · ${PRICE_DISPLAY} (Base)`
                     : "Connect Wallet to Pay in USDC"}
                 </button>
+                {/* AI Agent Callout */}
+                <div className="mt-16 p-2 text-left max-w-sm">
+                  <p className="text-xs font-medium tracking-[0.2em] uppercase text-[#d4a853] mb-3">
+                    Send Your AI Agent
+                  </p>
+                  <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-md px-4 py-3">
+                    <code className="flex-1 text-gray-500 text-xs leading-relaxed font-mono">
+                      Read https://agent18608.xyz/skill.md and follow the
+                      instructions to buy
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          "Read https://agent18608.xyz/skill.md and follow the instructions to buy",
+                        );
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="flex-shrink-0 mt-0.5 text-gray-300 hover:text-[#d4a853] transition-colors"
+                      aria-label="Copy to clipboard"
+                      title={copied ? "Copied!" : "Copy"}
+                    >
+                      {copied ? (
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect
+                            x="9"
+                            y="9"
+                            width="13"
+                            height="13"
+                            rx="2"
+                            ry="2"
+                          />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
+
               <TxRecoveryForm />
             </div>
           </div>
@@ -638,7 +700,8 @@ export default function Home() {
             Build infrastructure that <em className="text-[#d4a853]">works</em>
           </h2>
           <p className="text-gray-400 text-lg mb-12 max-w-xl mx-auto">
-            {PRICE_DISPLAY}. 9 chapters. Production infrastructure you can deploy today.
+            {PRICE_DISPLAY}. 9 chapters. Production infrastructure you can
+            deploy today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

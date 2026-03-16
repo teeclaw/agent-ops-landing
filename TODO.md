@@ -40,6 +40,10 @@
 - [x] DNS + SSL (automatic via Vercel)
 - [x] Production build passing
 
+### AI Agent Discovery
+- [x] `public/skill.md` — machine-readable x402 purchase flow for AI agents
+- [x] AI agent callout in Pricing section (with copy button)
+
 ### Code Quality (March 2026 cleanup)
 - [x] Extract shared constants (`lib/constants.ts`)
 - [x] Fix metadata: "18-chapter" corrected to "9-chapter"
@@ -61,7 +65,15 @@
 
 ### Assets Needed
 - [ ] Create `public/og-image.png` (1200x630) for social previews
-- [ ] Verify `public/cover.png` exists (referenced in pricing section)
+- [x] Verify `public/cover.png` exists (referenced in pricing section)
+
+### Mobile Layout Fixes
+- [ ] Pricing buttons not centered on mobile (`max-w-sm` needs `mx-auto md:mx-0`)
+- [ ] Comparison table cramped on mobile (reduce cell `pr-8` to `pr-4 md:pr-8`)
+- [ ] Hamburger touch target too small (`p-2` → `p-3` for 44px minimum)
+- [ ] Section vertical spacing too generous on mobile (`py-32` → `py-16 md:py-32`)
+- [ ] Price text oversized on mobile (`text-6xl` → `text-5xl md:text-6xl`)
+- [ ] Chapter grid gap too large on mobile (`gap-y-16` → `gap-y-10 md:gap-y-16`)
 
 ### QA
 - [ ] Run Lighthouse audit (target: 95+)
@@ -73,7 +85,7 @@
 
 ### Payment Testing
 - [ ] End-to-end test: Gumroad purchase flow
-- [ ] End-to-end test: x402 USDC payment flow
+- [x] End-to-end test: x402 USDC payment flow
 - [ ] Test download URL expiration (24h)
 - [ ] Test tx hash recovery flow
 

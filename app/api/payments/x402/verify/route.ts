@@ -1,51 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyPaymentOnchain } from '@/lib/x402-verify';
+import { verifyAndSettlePayment } from '@/lib/x402-verify';
 import { generateDownloadUrl } from '@/lib/download-url';
 import { storePayment } from '@/lib/payments';
-import { PRICE_USDC_HUMAN } from '@/lib/constants';
-
-const TX_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
+import { ONCHAIN_INTERMEDIATE_ADDRESS } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, txHash } = await req.json();
+    const { sessionId, paymentHeader } = await req.json();
 
     if (!sessionId) {
-      return NextResponse.json({
-        error: 'Session ID required',
-      }, { status: 400 });
+      return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
     }
 
-    if (!txHash) {
-      return NextResponse.json({
-        error: 'Transaction hash required',
-      }, { status: 400 });
+    if (!paymentHeader || typeof paymentHeader !== 'string') {
+      return NextResponse.json({ error: 'Payment header required' }, { status: 400 });
     }
 
-    // Validate tx hash format
-    if (!TX_HASH_REGEX.test(txHash.trim())) {
-      return NextResponse.json({
-        error: 'Invalid transaction hash format. Must start with 0x followed by 64 hex characters.',
-      }, { status: 400 });
-    }
-
-    const recipientAddress = process.env.NEXT_PUBLIC_X402_WALLET;
-    if (!recipientAddress) {
+    const finalRecipient = process.env.NEXT_PUBLIC_X402_WALLET;
+    if (!finalRecipient) {
       console.error('NEXT_PUBLIC_X402_WALLET is not configured');
       return NextResponse.json(
         { success: false, verified: false, error: 'Payment system misconfigured' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    // Verify USDC transfer on-chain
-    const result = await verifyPaymentOnchain(txHash, {
-      amount: PRICE_USDC_HUMAN,
-      recipient: recipientAddress,
-    });
+    // recipientAddress = intermediate address (must match authorization.to in payment header)
+    // finalRecipient = actual wallet that receives funds after settlement
+    const result = await verifyAndSettlePayment(
+      paymentHeader,
+      ONCHAIN_INTERMEDIATE_ADDRESS,
+      finalRecipient,
+    );
 
     if (result.verified) {
-      // Generate signed download URL (24h expiry)
       const downloadUrl = generateDownloadUrl(sessionId);
 
       // Store payment in Redis (non-fatal on failure)
@@ -67,25 +55,24 @@ export async function POST(req: NextRequest) {
         status: 'confirmed',
         downloadUrl,
         txHash: result.txHash,
+        facilitator: result.facilitator,
       });
     }
 
-    return NextResponse.json({
-      success: false,
-      verified: false,
-      status: 'failed',
-      error: result.error || 'Payment verification failed',
-    }, { status: 400 });
-
-  } catch (error) {
-    console.error('Verification error:', error);
     return NextResponse.json(
       {
         success: false,
         verified: false,
-        error: 'Verification failed'
+        status: 'failed',
+        error: result.error || 'Payment settlement failed',
       },
-      { status: 500 }
+      { status: 400 },
+    );
+  } catch (error) {
+    console.error('Verification error:', error);
+    return NextResponse.json(
+      { success: false, verified: false, error: 'Verification failed' },
+      { status: 500 },
     );
   }
 }
