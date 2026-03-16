@@ -1,136 +1,107 @@
 /**
- * x402-verify.ts — onchain.fi payment verification
- * Extracted from workspace/x402/x402-server.js for Next.js
+ * x402-verify.ts — payment verification
+ * Verifies USDC transfers on-chain using viem.
  */
 
-const ONCHAIN_API = 'https://api.onchain.fi';
+import { createPublicClient, http, parseAbiItem, formatUnits } from 'viem';
+import { base } from 'viem/chains';
+import { USDC_ADDRESS, PRICE_USDC_HUMAN } from '@/lib/constants';
+
+const client = createPublicClient({
+  chain: base,
+  transport: http(),
+});
+
+const TRANSFER_EVENT = parseAbiItem(
+  'event Transfer(address indexed from, address indexed to, uint256 value)'
+);
 
 interface VerificationResult {
   verified: boolean;
   txHash?: string;
-  facilitator?: string;
+  from?: string;
   amount?: string;
   error?: string;
 }
 
 interface PaymentRequirements {
   amount: string;
-  token: string;
-  network: string;
   recipient: string;
 }
 
 /**
- * Verify payment with onchain.fi aggregator
- * Uses the x402 protocol standard via onchain.fi /v1/pay endpoint
+ * Verify a USDC transfer on-chain by reading the transaction receipt
+ * and checking the ERC20 Transfer event logs.
  */
-export async function verifyPaymentWithOnchain(
-  paymentProof: any,
+export async function verifyPaymentOnchain(
+  txHash: string,
   requirements: PaymentRequirements
 ): Promise<VerificationResult> {
   try {
-    const apiKey = process.env.ONCHAIN_API_KEY;
-    
-    if (!apiKey) {
-      return {
-        verified: false,
-        error: 'ONCHAIN_API_KEY not configured'
-      };
+    const hash = txHash.trim() as `0x${string}`;
+
+    // 1. Get the transaction receipt
+    const receipt = await client.getTransactionReceipt({ hash });
+
+    if (receipt.status !== 'success') {
+      return { verified: false, error: 'Transaction reverted on-chain' };
     }
 
-    // Convert amount to USDC units (6 decimals)
-    const amountInUnits = String(Math.round(parseFloat(requirements.amount) * 1e6));
-
-    // Handle both payment proof formats:
-    // 1. x402 payment header (base64 encoded)
-    // 2. Simple tx hash object { txHash: '0x...' }
-    const paymentHeader = typeof paymentProof === 'string' 
-      ? paymentProof 
-      : paymentProof?.txHash;
-
-    if (!paymentHeader) {
-      return {
-        verified: false,
-        error: 'No payment proof or transaction hash provided'
-      };
-    }
-
-    // Call onchain.fi verification endpoint
-    const response = await fetch(`${ONCHAIN_API}/v1/pay`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
-      body: JSON.stringify({
-        paymentHeader,
-        to: requirements.recipient,
-        sourceNetwork: requirements.network,
-        destinationNetwork: requirements.network,
-        expectedAmount: requirements.amount, // Human-readable e.g. "39.00"
-        expectedToken: requirements.token,
-        priority: 'balanced',
-      }),
+    // 2. Find the USDC Transfer event in the logs
+    const transferLog = receipt.logs.find((log) => {
+      if (log.address.toLowerCase() !== USDC_ADDRESS.toLowerCase()) return false;
+      if (log.topics[0] !== '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef') return false;
+      return true;
     });
 
-    const data = await response.json();
+    if (!transferLog) {
+      return { verified: false, error: 'No USDC transfer found in transaction' };
+    }
 
-    // Check if payment was successfully verified and settled
-    if (response.status === 200 && data?.data?.settled) {
+    // 3. Decode the Transfer event
+    const to = `0x${transferLog.topics[2]!.slice(26)}`.toLowerCase();
+    const value = BigInt(transferLog.data);
+    const from = `0x${transferLog.topics[1]!.slice(26)}`.toLowerCase();
+
+    // 4. Verify recipient
+    if (to !== requirements.recipient.toLowerCase()) {
       return {
-        verified: true,
-        txHash: data.data.txHash,
-        facilitator: data.data.facilitator,
-        amount: data.data.amount,
+        verified: false,
+        error: `Transfer recipient mismatch: expected ${requirements.recipient}, got 0x${transferLog.topics[2]!.slice(26)}`,
       };
     }
 
-    // Payment not verified
-    return {
-      verified: false,
-      error: data?.error || data?.message || `Verification failed (status ${response.status})`,
-    };
+    // 5. Verify amount (USDC has 6 decimals)
+    const transferredAmount = formatUnits(value, 6);
+    const expectedAmount = parseFloat(requirements.amount);
+    const actualAmount = parseFloat(transferredAmount);
 
+    if (actualAmount < expectedAmount) {
+      return {
+        verified: false,
+        error: `Insufficient amount: expected ${requirements.amount} USDC, got ${transferredAmount} USDC`,
+      };
+    }
+
+    return {
+      verified: true,
+      txHash: hash,
+      from,
+      amount: transferredAmount,
+    };
   } catch (error) {
     console.error('[x402-verify] Error:', error);
-    return {
-      verified: false,
-      error: error instanceof Error ? error.message : 'Verification failed'
-    };
+
+    // Handle common viem errors
+    const message = error instanceof Error ? error.message : 'Verification failed';
+
+    if (message.includes('could not be found') || message.includes('not found')) {
+      return {
+        verified: false,
+        error: 'Transaction not found. It may still be confirming — please wait and retry.',
+      };
+    }
+
+    return { verified: false, error: message };
   }
-}
-
-/**
- * Build x402 standard payment requirements response
- * Format follows x402 v1 spec
- */
-export function buildPaymentRequirements(opts: {
-  amount: string;
-  recipient: string;
-  description?: string;
-  sourceNetwork?: string;
-  destinationNetwork?: string;
-}) {
-  const network = opts.sourceNetwork || 'base';
-  const amountUnits = String(Math.round(parseFloat(opts.amount) * 1e6)); // USDC 6 decimals
-
-  return {
-    x402Version: 1,
-    error: 'Payment Required',
-    accepts: [
-      {
-        scheme: 'exact',
-        network,
-        maxAmountRequired: amountUnits,
-        payTo: opts.recipient,
-        asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
-        maxTimeoutSeconds: 7200, // 2 hours
-        extra: {
-          name: 'USD Coin',
-          version: '2',
-          description: opts.description || 'x402 payment required',
-        },
-      },
-    ],
-  };
 }

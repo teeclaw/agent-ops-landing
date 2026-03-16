@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyPaymentWithOnchain } from '@/lib/x402-verify';
+import { verifyPaymentOnchain } from '@/lib/x402-verify';
 import { generateDownloadUrl } from '@/lib/download-url';
 import { storePayment } from '@/lib/payments';
+import { PRICE_USDC_HUMAN } from '@/lib/constants';
 
 const TX_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, paymentProof, txHash } = await req.json();
+    const { sessionId, txHash } = await req.json();
 
     if (!sessionId) {
       return NextResponse.json({
@@ -15,22 +16,19 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Support both x402 proof and simple tx hash
-    const proof = paymentProof || { txHash };
-
-    if (!proof || (!paymentProof && !txHash)) {
+    if (!txHash) {
       return NextResponse.json({
-        error: 'Payment proof or transaction hash required',
+        error: 'Transaction hash required',
       }, { status: 400 });
     }
 
     // Validate tx hash format
-    if (txHash && !TX_HASH_REGEX.test(txHash.trim())) {
+    if (!TX_HASH_REGEX.test(txHash.trim())) {
       return NextResponse.json({
         error: 'Invalid transaction hash format. Must start with 0x followed by 64 hex characters.',
       }, { status: 400 });
     }
-    
+
     const recipientAddress = process.env.X402_WALLET_ADDRESS;
     if (!recipientAddress) {
       console.error('X402_WALLET_ADDRESS is not configured');
@@ -40,14 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify with onchain.fi aggregator
-    const result = await verifyPaymentWithOnchain(proof, {
-      amount: '39.00',
-      token: 'USDC',
-      network: 'base',
+    // Verify USDC transfer on-chain
+    const result = await verifyPaymentOnchain(txHash, {
+      amount: PRICE_USDC_HUMAN,
       recipient: recipientAddress,
     });
-    
+
     if (result.verified) {
       // Generate signed download URL (24h expiry)
       const downloadUrl = generateDownloadUrl(sessionId);
@@ -58,7 +54,6 @@ export async function POST(req: NextRequest) {
           txHash: result.txHash,
           sessionId,
           downloadUrl,
-          facilitator: result.facilitator,
           source: 'x402',
           verifiedAt: new Date().toISOString(),
         });
@@ -72,35 +67,25 @@ export async function POST(req: NextRequest) {
         status: 'confirmed',
         downloadUrl,
         txHash: result.txHash,
-        facilitator: result.facilitator,
       });
     }
-    
-    if (result.error) {
-      return NextResponse.json({
-        success: false,
-        verified: false,
-        status: 'failed',
-        error: result.error
-      }, { status: 400 });
-    }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       success: false,
       verified: false,
-      status: 'pending' 
-    });
-    
+      status: 'failed',
+      error: result.error || 'Payment verification failed',
+    }, { status: 400 });
+
   } catch (error) {
     console.error('Verification error:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         verified: false,
-        error: 'Verification failed' 
+        error: 'Verification failed'
       },
       { status: 500 }
     );
   }
 }
-

@@ -4,10 +4,7 @@ const url = process.env.KV_REST_API_URL;
 const token = process.env.KV_REST_API_TOKEN;
 
 if (!url || !token) {
-  console.warn('Upstash Redis credentials missing (KV_REST_API_URL, KV_REST_API_TOKEN)');
+  throw new Error('Missing required env vars: KV_REST_API_URL and KV_REST_API_TOKEN must be configured');
 }
 
-export const redis = new Redis({
-  url: url || '',
-  token: token || '',
-});
+export const redis = new Redis({ url, token });

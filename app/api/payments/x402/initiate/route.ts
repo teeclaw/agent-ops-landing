@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { USDC_ADDRESS, PRICE_USDC_UNITS, PRODUCT_NAME, X402_VERSION } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,20 +25,20 @@ export async function POST(req: NextRequest) {
       accepts: [{
         scheme: 'exact',
         network: 'base',
-        maxAmountRequired: '390000', // 39 USDC (6 decimals)
+        maxAmountRequired: PRICE_USDC_UNITS,
         payTo: walletAddress,
-        asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+        asset: USDC_ADDRESS,
         maxTimeoutSeconds: 7200, // 2 hours
         extra: {
-          name: 'Agent 18608 Revenue Playbook',
+          name: PRODUCT_NAME,
           description: 'Payment for PDF download',
-          version: '1',
+          version: X402_VERSION,
         }
       }],
       sessionId,
       userWallet: userWallet || null, // Track for verification
     };
-    
+
     return NextResponse.json(requirements);
   } catch (error) {
     console.error('Payment initiation error:', error);

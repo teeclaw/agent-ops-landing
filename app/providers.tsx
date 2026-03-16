@@ -12,7 +12,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
 const config = getDefaultConfig({
   appName: 'Agent 18608',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? (() => { console.error('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not configured'); return 'missing'; })(),
   chains: [base],
   ssr: true,
 });

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { A2A_HEALTH_URL } from '@/lib/constants';
 
 export async function GET() {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    const res = await fetch('https://a2a.teeclaw.xyz/health', {
+    const res = await fetch(A2A_HEALTH_URL, {
       signal: controller.signal,
     });
     clearTimeout(timeout);

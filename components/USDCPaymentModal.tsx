@@ -8,6 +8,7 @@ import {
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { base } from "wagmi/chains";
+import { USDC_ADDRESS, PRICE_USDC_BIGINT, PRICE_DISPLAY, PRICE_USDC_HUMAN } from "@/lib/constants";
 
 const ERC20_TRANSFER_ABI = [
   {
@@ -22,9 +23,7 @@ const ERC20_TRANSFER_ABI = [
   },
 ] as const;
 
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 const RECIPIENT = process.env.NEXT_PUBLIC_X402_WALLET as `0x${string}` | undefined;
-const USDC_AMOUNT = BigInt(39_000_000); // 39 USDC, 6 decimals
 
 type PaymentStatus =
   | "initiating"
@@ -173,7 +172,7 @@ export default function USDCPaymentModal({
         address: USDC_ADDRESS,
         abi: ERC20_TRANSFER_ABI,
         functionName: "transfer",
-        args: [RECIPIENT, USDC_AMOUNT],
+        args: [RECIPIENT, PRICE_USDC_BIGINT],
         chainId: base.id,
       });
       // txHash is set by the hook; move to pending
@@ -195,7 +194,7 @@ export default function USDCPaymentModal({
       ) {
         setStatus("error");
         setErrorMessage(
-          "Insufficient USDC balance. You need at least 39 USDC on Base.",
+          `Insufficient USDC balance. You need at least ${PRICE_USDC_HUMAN} USDC on Base.`,
         );
         setErrorType("insufficient");
       } else {
@@ -313,7 +312,7 @@ export default function USDCPaymentModal({
           <div className="space-y-6">
             <div>
               <label className="block text-xs text-gray-400 mb-2">Amount</label>
-              <p className="text-2xl font-display text-gray-900">39.00 USDC</p>
+              <p className="text-2xl font-display text-gray-900">{PRICE_USDC_HUMAN} USDC</p>
             </div>
 
             <div>
@@ -338,7 +337,7 @@ export default function USDCPaymentModal({
               onClick={handlePay}
               className="w-full bg-[#d4a853] hover:bg-[#c49a42] text-white font-medium py-3 px-6 rounded-lg transition-colors text-sm"
             >
-              {isWrongChain ? "Switch to Base" : "Pay $39 USDC"}
+              {isWrongChain ? "Switch to Base" : `Pay ${PRICE_DISPLAY} USDC`}
             </button>
           </div>
         )}

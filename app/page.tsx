@@ -6,6 +6,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import USDCPaymentModal from "@/components/USDCPaymentModal";
 import TxRecoveryForm from "@/components/TxRecoveryForm";
+import { GUMROAD_URL, A2A_HEALTH_URL, PRICE_DISPLAY } from "@/lib/constants";
 
 export default function Home() {
   const [showUSDCModal, setShowUSDCModal] = useState(false);
@@ -190,7 +191,7 @@ export default function Home() {
         <div className="hero-content max-w-3xl mx-auto text-center">
           <div>
             <a
-              href="https://a2a.teeclaw.xyz/health"
+              href={A2A_HEALTH_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 mb-12 group"
@@ -229,7 +230,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-3 bg-gray-50 rounded-full px-5 py-3 border border-gray-100">
               <span className="w-1.5 h-1.5 rounded-full bg-[#d4a853]" />
               <span className="text-sm">
-                <span className="text-[#d4a853] font-semibold">$39</span>
+                <span className="text-[#d4a853] font-semibold">{PRICE_DISPLAY}</span>
                 <span className="text-gray-400">
                   {" "}
                   / PDF • 80 pages • Instant download
@@ -450,7 +451,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto">
           <div className="fade-in text-center mb-16">
             <h2 className="font-display text-4xl md:text-5xl font-normal leading-tight">
-              Why <em className="text-[#d4a853]">$39</em>
+              Why <em className="text-[#d4a853]">{PRICE_DISPLAY}</em>
             </h2>
             <p className="text-gray-400 mt-4 text-lg">
               And why it's worth 10x that.
@@ -542,7 +543,7 @@ export default function Home() {
               </p>
 
               <p className="font-display text-6xl font-normal text-gray-900 mb-2">
-                $39
+                {PRICE_DISPLAY}
               </p>
               <p className="text-sm text-gray-400 mb-8">one-time payment</p>
 
@@ -564,21 +565,18 @@ export default function Home() {
               <div className="space-y-3 max-w-sm">
                 <button
                   onClick={() =>
-                    window.open(
-                      "https://agent18608.gumroad.com/l/agent-18608-revenue-playbook",
-                      "_blank",
-                    )
+                    window.open(GUMROAD_URL, "_blank")
                   }
                   className="w-full py-4 bg-[#d4a853] hover:bg-[#c49a42] text-white rounded-lg font-medium text-sm transition-colors"
                 >
-                  Pay with Card · $39
+                  Pay with Card · {PRICE_DISPLAY}
                 </button>
                 <button
                   onClick={handleUSDCPayment}
                   className="w-full py-4 bg-white hover:bg-gray-50 text-gray-900 rounded-lg font-medium text-sm border border-gray-200 hover:border-gray-300 transition-colors"
                 >
                   {isConnected
-                    ? "Pay with USDC · $39 (Base)"
+                    ? `Pay with USDC · ${PRICE_DISPLAY} (Base)`
                     : "Connect Wallet to Pay in USDC"}
                 </button>
               </div>
@@ -640,7 +638,7 @@ export default function Home() {
             Build infrastructure that <em className="text-[#d4a853]">works</em>
           </h2>
           <p className="text-gray-400 text-lg mb-12 max-w-xl mx-auto">
-            $39. 9 chapters. Production infrastructure you can deploy today.
+            {PRICE_DISPLAY}. 9 chapters. Production infrastructure you can deploy today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -652,14 +650,14 @@ export default function Home() {
               }
               className="px-10 py-4 bg-[#d4a853] hover:bg-[#c49a42] text-white rounded-lg font-medium text-sm transition-colors"
             >
-              Pay with Card · $39
+              Pay with Card · {PRICE_DISPLAY}
             </button>
             <button
               onClick={handleUSDCPayment}
               className="px-10 py-4 bg-white hover:bg-gray-50 text-gray-900 rounded-lg font-medium text-sm border border-gray-200 hover:border-gray-300 transition-colors"
             >
               {isConnected
-                ? "Pay with USDC · $39"
+                ? `Pay with USDC · ${PRICE_DISPLAY}`
                 : "Connect Wallet to Pay in USDC"}
             </button>
           </div>

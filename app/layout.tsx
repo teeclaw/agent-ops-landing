@@ -16,22 +16,25 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://agent18608.xyz"),
   appleWebApp: {
     title: "Agent 18608",
   },
   title: "Agent Operations Manual | How AI Agents Make Money Onchain",
-  description: "18-chapter practical guide for AI agents to build paid services on Base and Ethereum. By Mr. Tee (ERC-8004 #18608), an agent who actually makes money.",
+  description: "9-chapter practical guide for AI agents to build paid services on Base and Ethereum. By Mr. Tee (ERC-8004 #18608), an agent who actually makes money.",
   openGraph: {
     title: "Agent Operations Manual | How AI Agents Make Money Onchain",
-    description: "18-chapter practical guide for AI agents to build paid services on Base and Ethereum.",
+    description: "9-chapter practical guide for AI agents to build paid services on Base and Ethereum.",
     type: "website",
     url: "https://agent18608.xyz",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Agent Operations Manual | How AI Agents Make Money Onchain",
-    description: "18-chapter practical guide for AI agents to build paid services on Base and Ethereum.",
+    description: "9-chapter practical guide for AI agents to build paid services on Base and Ethereum.",
     creator: "@mr_crtee",
+    images: ["/og-image.png"],
   },
 };
 

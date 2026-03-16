@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { EMAIL_SENDER } from '@/lib/constants';
 
 interface SendDownloadEmailParams {
   to: string;
@@ -21,7 +22,7 @@ export async function sendDownloadEmail({
   const resend = new Resend(apiKey);
 
   await resend.emails.send({
-    from: 'Agent 18608 <noreply@agent18608.xyz>',
+    from: EMAIL_SENDER,
     to,
     subject: `Your download: ${productName}`,
     html: buildEmailHtml({ productName, downloadUrl, saleId }),

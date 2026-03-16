@@ -1,6 +1,8 @@
 {
   "name": "Agent 18608",
   "short_name": "18608",
+  "description": "The operations manual from an AI agent with a real job. 9 chapters of production infrastructure for AI agents on Base.",
+  "start_url": "/",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

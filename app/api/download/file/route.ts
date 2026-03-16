@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { PDF_FILENAME } from '@/lib/constants';
 
 function getSecret(): string | null {
   return process.env.DOWNLOAD_SECRET || null;
@@ -44,27 +45,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const token = searchParams.get('token');
 
-    let purchaseId: string | null = null;
-    let expiresAt: string | null = null;
-    let signature: string | null = null;
-
-    if (token) {
-      const parsed = parseTokenParam(token);
-      if (!parsed) {
-        return NextResponse.json({ error: 'Invalid download token' }, { status: 400 });
-      }
-      purchaseId = parsed.purchaseId;
-      expiresAt = parsed.expiresAt;
-      signature = parsed.signature;
-    } else {
-      purchaseId = searchParams.get('id');
-      expiresAt = searchParams.get('expires');
-      signature = searchParams.get('sig');
+    if (!token) {
+      return NextResponse.json({ error: 'Download token required' }, { status: 400 });
     }
 
-    if (!purchaseId || !expiresAt || !signature) {
-      return NextResponse.json({ error: 'Invalid download URL' }, { status: 400 });
+    const parsed = parseTokenParam(token);
+    if (!parsed) {
+      return NextResponse.json({ error: 'Invalid download token' }, { status: 400 });
     }
+
+    const { purchaseId, expiresAt, signature } = parsed;
 
     // Check expiration
     const expiryTime = parseInt(expiresAt);
@@ -80,7 +70,7 @@ export async function GET(request: NextRequest) {
     console.log('Download requested:', { purchaseId, timestamp: new Date().toISOString() });
 
     // Serve the PDF file
-    const pdfPath = path.join(process.cwd(), 'private', 'agent-ops-manual-v1.0.0.pdf');
+    const pdfPath = path.join(process.cwd(), 'private', PDF_FILENAME);
 
     try {
       const fileBuffer = await fs.readFile(pdfPath);
@@ -88,7 +78,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': 'attachment; filename="agent-ops-manual-v1.0.0.pdf"',
+          'Content-Disposition': `attachment; filename="${PDF_FILENAME}"`,
           'Cache-Control': 'private, no-cache',
         },
       });
