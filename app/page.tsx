@@ -799,7 +799,7 @@ export default function Home() {
 
           <div className="flex items-center gap-8 text-sm text-gray-400">
             <a
-              href="https://twitter.com/mr_crtee"
+              href="https://x.com/agent18608"
               className="hover:text-gray-900 transition-colors"
             >
               Twitter
